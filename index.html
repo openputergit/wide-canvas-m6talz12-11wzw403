@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smile Rating App</title>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-teal-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-teal-800 mb-2">Smile Meter</h1>
+            <p class="text-teal-600">Share your smile, spread happiness!</p>
+        </header>
+
+        <div class="grid md:grid-cols-2 gap-8">
+            <!-- Camera Section -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <div class="mb-4">
+                    <video id="video" class="w-full rounded-lg" autoplay muted></video>
+                    <canvas id="canvas" class="hidden"></canvas>
+                </div>
+                <div class="flex justify-center space-x-4">
+                    <button id="takePhoto" class="bg-teal-500 text-white px-6 py-2 rounded-full hover:bg-teal-600">
+                        <i class="bi bi-camera"></i> Take Selfie
+                    </button>
+                    <button id="retake" class="hidden bg-gray-500 text-white px-6 py-2 rounded-full hover:bg-gray-600">
+                        Retake
+                    </button>
+                </div>
+            </div>
+
+            <!-- Rating & Referral Section -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <div id="ratingSection" class="hidden">
+                    <h3 class="text-xl font-semibold mb-4">Rate Your Smile</h3>
+                    <div class="flex justify-center space-x-2 text-2xl mb-6">
+                        <i class="bi bi-star cursor-pointer" data-rating="1"></i>
+                        <i class="bi bi-star cursor-pointer" data-rating="2"></i>
+                        <i class="bi bi-star cursor-pointer" data-rating="3"></i>
+                        <i class="bi bi-star cursor-pointer" data-rating="4"></i>
+                        <i class="bi bi-star cursor-pointer" data-rating="5"></i>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Refer Friends</label>
+                        <input type="email" id="referEmail" placeholder="Enter email addresses (comma-separated)" 
+                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500">
+                    </div>
+                    <button id="submit" class="w-full bg-teal-500 text-white px-6 py-2 rounded-full hover:bg-teal-600">
+                        Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Section -->
+        <div class="mt-8 bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-bold mb-4">Today's Leaderboard</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead>
+                        <tr class="bg-teal-50">
+                            <th class="px-6 py-3 text-left">Rank</th>
+                            <th class="px-6 py-3 text-left">User</th>
+                            <th class="px-6 py-3 text-left">Rating</th>
+                            <th class="px-6 py-3 text-left">Likes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Donation Section -->
+        <div class="mt-8 bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-bold mb-4">Support With Crypto</h2>
+            <div class="flex flex-col md:flex-row gap-4">
+                <input type="number" id="donationAmount" placeholder="Amount in ETH" 
+                       class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500">
+                <button id="donate" class="bg-teal-500 text-white px-6 py-2 rounded-full hover:bg-teal-600">
+                    <i class="bi bi-currency-bitcoin"></i> Donate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize face-api.js
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceExpressionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/')
+        ]).then(startVideo);
+
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const takePhotoBtn = document.getElementById('takePhoto');
+        const retakeBtn = document.getElementById('retake');
+        const ratingSection = document.getElementById('ratingSection');
+        let currentRating = 0;
+
+        function startVideo() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                })
+                .catch(err => console.error(err));
+        }
+
+        // Star rating system
+        document.querySelectorAll('[data-rating]').forEach(star => {
+            star.addEventListener('click', (e) => {
+                const rating = parseInt(e.target.dataset.rating);
+                currentRating = rating;
+                updateStars(rating);
+            });
+        });
+
+        function updateStars(rating) {
+            document.querySelectorAll('[data-rating]').forEach(star => {
+                const starRating = parseInt(star.dataset.rating);
+                star.classList.remove('bi-star-fill', 'bi-star');
+                star.classList.add(starRating <= rating ? 'bi-star-fill' : 'bi-star');
+            });
+        }
+
+        // Take photo functionality
+        takePhotoBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            video.classList.add('hidden');
+            canvas.classList.remove('hidden');
+            takePhotoBtn.classList.add('hidden');
+            retakeBtn.classList.remove('hidden');
+            ratingSection.classList.remove('hidden');
+        });
+
+        retakeBtn.addEventListener('click', () => {
+            video.classList.remove('hidden');
+            canvas.classList.add('hidden');
+            takePhotoBtn.classList.remove('hidden');
+            retakeBtn.classList.add('hidden');
+            ratingSection.classList.add('hidden');
+        });
+
+        // Simulated leaderboard data
+        const leaderboardData = [
+            { rank: 1, user: "User1", rating: 5, likes: 120 },
+            { rank: 2, user: "User2", rating: 4.8, likes: 98 },
+            { rank: 3, user: "User3", rating: 4.5, likes: 85 }
+        ];
+
+        function updateLeaderboard() {
+            const tbody = document.getElementById('leaderboardBody');
+            tbody.innerHTML = leaderboardData.map(entry => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-6 py-4">${entry.rank}</td>
+                    <td class="px-6 py-4">${entry.user}</td>
+                    <td class="px-6 py-4">${entry.rating}</td>
+                    <td class="px-6 py-4">${entry.likes}</td>
+                </tr>
+            `).join('');
+        }
+
+        updateLeaderboard();
+
+        // Crypto donation functionality
+        document.getElementById('donate').addEventListener('click', async () => {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const web3 = new Web3(window.ethereum);
+                    const accounts = await web3.eth.getAccounts();
+                    const amount = document.getElementById('donationAmount').value;
+                    
+                    // Replace with your smart contract details
+                    const transaction = {
+                        from: accounts[0],
+                        to: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e', // Example address
+                        value: web3.utils.toWei(amount, 'ether')
+                    };
+
+                    await web3.eth.sendTransaction(transaction);
+                    alert('Thank you for your donation!');
+                } catch (error) {
+                    console.error(error);
+                    alert('Transaction failed!');
+                }
+            } else {
+                alert('Please install MetaMask!');
+            }
+        });
+
+        // Submit functionality
+        document.getElementById('submit').addEventListener('click', () => {
+            const referEmails = document.getElementById('referEmail').value;
+            if (currentRating === 0) {
+                alert('Please rate your smile!');
+                return;
+            }
+            // Here you would typically send the data to your backend
+            alert('Thank you for participating! Your friends will be notified.');
+            location.reload();
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
